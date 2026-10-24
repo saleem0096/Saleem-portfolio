@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Fox Tracking</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f4f7fa;color:#172033}
+header{background:#0d1b2a;color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:25px;font-weight:800}.logo span{color:#ff9d2e}.tag{font-size:12px;color:#cbd5e1}
+.container{max-width:1150px;margin:22px auto;padding:0 15px}.card{background:#fff;border:1px solid #e1e7ee;border-radius:13px;padding:20px;margin-bottom:16px;box-shadow:0 3px 12px #0000000b}
+.search{display:flex;gap:10px}.search input{flex:1;padding:13px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px}.search button{background:#ffb000;color:#172033;border:0;border-radius:8px;padding:0 25px;font-weight:700;cursor:pointer}
+.toprow{display:flex;justify-content:space-between;align-items:center;gap:15px}.label{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#64748b}.value{font-size:18px;font-weight:700;margin-top:5px}.route{margin-top:8px;color:#475569}
+.badge{background:#fff2c2;color:#735300;border:1px solid #f0d46c;border-radius:20px;padding:8px 12px;font-size:13px;font-weight:bold}.badge.ok{background:#e8f7ee;color:#14733f;border-color:#9bd8b5}
+.info{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:22px}
+.cust{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:20px;padding-top:18px;border-top:1px solid #e8edf2}
+.bar{height:10px;background:#e5eaf0;border-radius:6px;margin-top:20px;overflow:hidden}.bar div{height:100%;width:0;background:#22a06b;transition:width 1s}
+.notice{margin-top:17px;background:#fff9e5;border-left:4px solid #ffb000;padding:12px;color:#5f531f;font-size:13px}
+.layout{display:grid;grid-template-columns:1.25fr .9fr;gap:16px}#map{height:520px;border-radius:10px}.maptitle{font-size:18px;font-weight:700;margin-bottom:13px}
+.scroll{max-height:540px;overflow:auto;padding-right:6px}
+.stop{display:flex;gap:13px;position:relative;padding-bottom:20px}.dot{width:20px;height:20px;border-radius:50%;background:#dc2626;color:#fff;font-size:12px;font-weight:bold;display:flex;align-items:center;justify-content:center;flex:none;margin-top:1px}.done .dot{background:#2563eb}.current .dot{background:#dc2626;box-shadow:0 0 0 3px #fecaca}.legend{font-size:12px;font-weight:400;color:#475569;margin-left:8px}.mapbtn{float:right;margin-left:6px;background:#0d1b2a;color:#fff;border:0;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer}
+#map{border-radius:18px}.thumb{width:64px;height:64px;border-radius:14px;flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:28px;background:linear-gradient(135deg,#fde68a,#93c5fd)}
+#mapcard{position:absolute;left:12px;right:12px;bottom:12px;z-index:500;background:#fff;border-radius:18px;padding:10px;display:flex;gap:12px;align-items:center;box-shadow:0 4px 18px #0003}#mapcard .thumb{width:56px;height:56px}#mapcard b{font-size:16px}#mapcard div div{font-size:12px;color:#64748b;margin-top:3px}
+.line{position:absolute;left:8px;top:20px;height:calc(100% - 18px);border-left:2px solid #dce2e8}.stop:last-child .line{display:none}.stopname{font-weight:700;font-size:14px}.ev{font-size:13px;color:#334155;margin-top:3px}.meta{font-size:12px;color:#64748b;margin-top:3px}
+.state{float:right;background:#eef1f5;color:#475569;border-radius:15px;padding:4px 8px;font-size:10px;font-weight:bold}.done .state{background:#e8f7ee;color:#14733f}.current .state{background:#fff2c2;color:#735300}
+.footer{text-align:center;color:#64748b;font-size:11px;padding:6px 15px 25px}
+@media(max-width:750px){header{display:block}.tag{margin-top:5px}.toprow{display:block}.badge{display:inline-block;margin-top:12px}.info{grid-template-columns:1fr 1fr}.cust{grid-template-columns:1fr}.layout{grid-template-columns:1fr}.search{flex-direction:column}.search button{height:44px}#map{height:360px}}
+</style>
+</head>
+<body>
+<header><div class="logo">Shadow <span>Fox</span></div><div class="tag">Shipment Tracking • Project demo</div></header>
+<div class="container">
+<div class="card">
+  <div class="search"><input id="order" placeholder="Enter tracking ID"><button onclick="track()">Track shipment</button></div>
+  <div id="message" style="font-size:13px;color:#64748b;margin-top:10px"></div>
+</div>
+<div class="card">
+  <div class="toprow">
+    <div><div class="label">Tracking ID</div><div class="value" id="trackingId"></div><div class="route" id="routeText"></div></div>
+    <div class="badge" id="status">IN TRANSIT</div>
+  </div>
+  <div class="info">
+    <div><div class="label">Current location</div><div class="value" id="current">–</div></div>
+    <div><div class="label">Coordinates</div><div class="value" id="coords">–</div></div>
+    <div><div class="label">Shipped on</div><div class="value" id="startDate">–</div></div>
+    <div><div class="label">Delivery deadline</div><div class="value" id="eta">–</div></div>
+  </div>
+  <div class="cust">
+    <div><div class="label">Customer</div><div class="value" id="cName"></div></div>
+    <div><div class="label">Delivery address</div><div class="value" id="cAddr"></div></div>
+    <div><div class="label">PIN code</div><div class="value" id="cPin"></div></div>
+  </div>
+  <div class="bar"><div id="progress"></div></div>
+  <div class="notice" id="notice"></div>
+  <div class="meta" id="updated" style="margin-top:10px"></div>
+</div>
+<div class="layout">
+  <div class="card"><div class="maptitle">Tracking Map<button class="mapbtn" onclick="routeView()">Full route</button><button class="mapbtn" onclick="globeView()">🌍 Zoom to destination</button></div><div style="position:relative"><div id="map"></div><div id="mapcard"></div></div></div>
+  <div class="card"><div class="maptitle">Day-by-Day Shipment Progress<div class="legend"><span style="color:#2563eb">✔ Reached</span> &nbsp; <span style="color:#dc2626">✔ Not reached yet</span></div></div><div class="scroll" id="timeline"></div></div>
+</div>
+</div>
+<div class="footer">Student project demo • Fictional customer and simulated scan events • Not a real carrier record.</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ================= EDIT THIS SECTION ================= */
+const TRACKING="SFX-IND-5Z91K7-328476";
+const SHIP_START="2026-10-21T09:00:00+05:30";
+const CUSTOMER={name:"Jahul Hak",address:"12 Sample Street, Bharatpur, Rajasthan",pin:"321001",lat:27.2173,lng:77.4895};
+// hours = hours after SHIP_START. Change them and every date on the page updates.
+const points=[
+ {name:"Bengaluru, Karnataka",ev:"Shipment picked up from seller",lat:12.9716,lng:77.5946,hours:0},
+ {name:"Bengaluru Sort Hub",ev:"Departed origin hub",lat:12.9352,lng:77.6245,hours:8},
+ {name:"Hyderabad, Telangana",ev:"Arrived at Hyderabad hub",lat:17.3850,lng:78.4867,hours:26},
+ {name:"Hyderabad, Telangana",ev:"Departed Hyderabad hub",lat:17.4065,lng:78.4772,hours:32},
+ {name:"Nagpur, Maharashtra",ev:"Arrived at Nagpur hub",lat:21.1458,lng:79.0882,hours:66},
+ {name:"Nagpur, Maharashtra",ev:"Departed Nagpur hub",lat:21.1702,lng:79.0710,hours:72},
+ {name:"Bhopal, Madhya Pradesh",ev:"Arrived at Bhopal hub",lat:23.2599,lng:77.4126,hours:96},
+ {name:"Gwalior, Madhya Pradesh",ev:"Arrived at Gwalior transit point",lat:26.2183,lng:78.1828,hours:126},
+ {name:"Agra, Uttar Pradesh",ev:"Arrived at Agra hub",lat:27.1767,lng:78.0081,hours:148},
+ {name:"Bharatpur, Rajasthan",ev:"Arrived at local delivery hub",lat:27.2152,lng:77.5030,hours:158},
+ {name:"Bharatpur, Rajasthan",ev:"Out for delivery",lat:27.2100,lng:77.5000,hours:164},
+ {name:"Delivery address, Bharatpur "+CUSTOMER.pin,ev:"Delivered",lat:CUSTOMER.lat,lng:CUSTOMER.lng,hours:168}
+];
+/* Optional real GPS: URL returning {"lat":..,"lng":..,"updated":"ISO"} */
+const LIVE_FEED_URL="";
+/* ===================================================== */
+const H=3600000,start=new Date(SHIP_START).getTime();points.forEach(p=>p.t=start+p.hours*H);
+const $=id=>document.getElementById(id),L_=points.length-1;
+const fD=t=>new Date(t).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric",timeZone:"Asia/Kolkata"});
+const fT=t=>new Date(t).toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit",timeZone:"Asia/Kolkata"});
+$("trackingId").textContent=TRACKING;$("order").value=TRACKING;
+$("routeText").textContent="Bengaluru, Karnataka → Bharatpur, Rajasthan "+CUSTOMER.pin;
+$("startDate").textContent=fD(start);$("eta").textContent=fD(points[L_].t);
+$("cName").textContent=CUSTOMER.name;$("cAddr").textContent=CUSTOMER.address;$("cPin").textContent=CUSTOMER.pin;
+
+const map=L.map("map",{zoomControl:false});
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{attribution:"Tiles © Esri",maxZoom:18}).addTo(map);
+L.control.zoom({position:"topright"}).addTo(map);
+const full=L.polyline(points.map(p=>[p.lat,p.lng]),{weight:4,color:"#94a3b8",dashArray:"6 8"}).addTo(map);
+const doneLine=L.polyline([],{weight:5,color:"#22a06b"}).addTo(map);
+/* Add your own photo per city: PHOTOS.Bengaluru="https://.../photo.jpg" (use images you have rights to) */
+const PHOTOS={};
+const ICONS={Bengaluru:"🏙️",Hyderabad:"🌆",Nagpur:"🛕",Bhopal:"🌊",Gwalior:"🏰",Agra:"🕌",Bharatpur:"🏠",Delivery:"🏠"};
+function cityKey(n){return n.split(",")[0].split(" ")[0]}
+function thumb(x){const k=cityKey(x.name);return PHOTOS[k]?'<img class="thumb" src="'+PHOTOS[k]+'" alt="'+k+'">':'<div class="thumb">'+(ICONS[k]||"📍")+'</div>'}
+function tickIcon(ok){return L.divIcon({html:'<div style="width:22px;height:22px;border-radius:50%;background:'+(ok?'#2563eb':'#dc2626')+';color:#fff;font:bold 13px/22px Arial;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px #0006">✔</div>',className:"",iconSize:[22,22],iconAnchor:[11,11]})}
+const tickMarks=points.slice(0,-1).map(p=>L.marker([p.lat,p.lng],{icon:tickIcon(false)}).addTo(map).bindTooltip(p.name+" • "+fD(p.t)));
+function globeView(){map.flyTo([CUSTOMER.lat,CUSTOMER.lng],7,{duration:3.5})}
+function routeView(){map.flyToBounds(full.getBounds(),{padding:[30,30],duration:2})}
+map.setView([20,40],2);setTimeout(globeView,700);
+L.marker([CUSTOMER.lat,CUSTOMER.lng],{icon:L.divIcon({html:'<div style="font-size:26px;line-height:26px">🏠</div>',className:"",iconSize:[26,26],iconAnchor:[13,24]})}).addTo(map)
+ .bindPopup("<b>Delivery address</b><br>"+CUSTOMER.address+"<br>PIN: "+CUSTOMER.pin);
+const marker=L.marker([points[0].lat,points[0].lng]).addTo(map);
+let liveOK=false,livePos=null;
+
+function pos(now){
+ if(now<=points[0].t)return{i:0,lat:points[0].lat,lng:points[0].lng};
+ if(now>=points[L_].t)return{i:L_,lat:points[L_].lat,lng:points[L_].lng,delivered:true};
+ let i=0;while(now>=points[i+1].t)i++;
+ const a=points[i],b=points[i+1],f=(now-a.t)/(b.t-a.t);
+ return{i,lat:a.lat+(b.lat-a.lat)*f,lng:a.lng+(b.lng-a.lng)*f};
+}
+function render(){
+ const now=Date.now(),s=pos(now);let lat=s.lat,lng=s.lng,src="Position estimated from scheduled scans";
+ if(liveOK&&livePos){lat=livePos.lat;lng=livePos.lng;src="Live GPS • last ping "+fT(new Date(livePos.updated).getTime());}
+ const cur=points[s.i];
+ $("current").textContent=s.delivered?"Delivered":(now<start?cur.name:"Near "+cur.name.split(",")[0]);
+ $("coords").textContent=lat.toFixed(4)+", "+lng.toFixed(4);
+ const pct=Math.min(100,Math.max(0,(now-start)/(points[L_].t-start)*100));$("progress").style.width=pct+"%";
+ const st=$("status");
+ if(now<start){st.textContent="LABEL CREATED";st.className="badge"}
+ else if(s.delivered){st.textContent="DELIVERED";st.className="badge ok"}
+ else if(s.i>=L_-1){st.textContent="OUT FOR DELIVERY";st.className="badge"}
+ else{st.textContent="IN TRANSIT";st.className="badge"}
+ $("notice").textContent=s.delivered?"Delivered to "+CUSTOMER.address+" – "+CUSTOMER.pin+" on "+fD(points[L_].t)+".":
+  "Latest: "+cur.ev+" ("+fT(cur.t)+"). Next: "+points[s.i+1].ev+" – "+points[s.i+1].name+", "+fT(points[s.i+1].t)+". Expected delivery "+fD(points[L_].t)+".";
+ $("updated").textContent=src+" • refreshed "+new Date().toLocaleTimeString("en-IN",{timeZone:"Asia/Kolkata"});
+ marker.setLatLng([lat,lng]).bindPopup("<b>"+cur.name+"</b><br>"+cur.ev+"<br>"+TRACKING);
+ $("mapcard").innerHTML=thumb(cur)+'<div><b>'+cur.name+'</b><div>'+cur.ev+' • '+fT(cur.t)+'</div></div>';
+ tickMarks.forEach((m,n)=>m.setIcon(tickIcon(now>=points[n].t)));
+ const tr=points.slice(0,s.i+1).map(p=>[p.lat,p.lng]);tr.push([lat,lng]);doneLine.setLatLngs(tr);
+ const tl=$("timeline");tl.innerHTML="";
+ points.forEach((x,n)=>{
+  const passed=now>=x.t,next=!passed&&n===s.i+1,el=document.createElement("div");
+  el.className="stop "+(passed?"done":next?"current":"");
+  el.innerHTML='<div class="dot">✔</div>'+thumb(x)+'<div style="width:100%"><div class="stopname">'+x.name+'<span class="state">'+(passed?"DONE":next?"NEXT":"UPCOMING")+'</span></div><div class="ev">'+x.ev+'</div><div class="meta">'+(passed?"":"Expected ")+fT(x.t)+'</div></div><div class="line"></div>';
+  tl.appendChild(el);
+ });
+}
+async function poll(){if(!LIVE_FEED_URL)return;try{const r=await fetch(LIVE_FEED_URL,{cache:"no-store"});livePos=await r.json();liveOK=true}catch(e){liveOK=false}}
+function track(){$("message").textContent=$("order").value.trim()===TRACKING?"Shipment found.":"Tracking ID not found. Try "+TRACKING+"."}
+poll().then(render);render();setInterval(()=>poll().then(render),5000);
+</script>
+</body>
+</html>
